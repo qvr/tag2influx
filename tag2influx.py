@@ -62,11 +62,6 @@ def _main():
   if args.todate and not args.fromdate:
     parser.error('--todate can only be set with --fromdate')
 
-  wtag_rs = requests.Session()
-
-  wtag_r = wtag_rs.post(wtag_signin_url, json = {"email":wtag_email,"password":wtag_password}, timeout=5)
-  assert wtag_r.ok, "login failed"
-
   wtag_local_tz = pytz.timezone(wtag_timezone)
   if not args.fromdate:
     toDate = datetime.now(wtag_local_tz)
@@ -84,6 +79,11 @@ def _main():
       toDate = datetime.now(wtag_local_tz)
 
   print "Requesting WTAG " + wtag_stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
+
+  wtag_rs = requests.Session()
+
+  wtag_r = wtag_rs.post(wtag_signin_url, json = {"email":wtag_email,"password":wtag_password}, timeout=5)
+  assert wtag_r.ok, "login failed"
 
   wtag_r = wtag_rs.post(wtag_getmultitagstatsraw_url, json = {"ids":wtag_tag_ids,"type":wtag_stat,"fromDate":fromDate.strftime("%Y-%m-%dT%H:%M"),"toDate":toDate.strftime("%Y-%m-%d")}, timeout=20)
   assert wtag_r.ok, "GetMultiTagStatsRaw failed"
