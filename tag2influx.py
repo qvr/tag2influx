@@ -16,7 +16,6 @@ wtag_email = conf['wtag']['email']
 wtag_password = conf['wtag']['password']
 wtag_timezone = conf['wtag']['timezone']
 wtag_tag_ids = conf['wtag'].get('tag_ids') or []
-wtag_stat = conf['wtag'].get('stat') or "temperature"
 
 influx_write_url = conf['influx']['write_url']
 influx_batch_size = conf['influx'].get('batch_size') or 1000
@@ -30,13 +29,35 @@ def _batches(iterable, size):
   for i in xrange(0, len(iterable), size):
     yield iterable[i:i + size]
 
+def _format_point(tag,stat,value,timestamp):
+  try:
+    series = conf['influx']['schema'].get('series') or "wtag"
+  except KeyError:
+    series = "wtag"
+
+  try:
+    stat = conf['influx']['schema']['stat_map'].get(stat) or stat
+  except KeyError:
+    pass
+
+  tag = str(tag).replace(' ','\ ')
+  timestamp = str(timestamp*1000000000)
+
+  point = series + ",tag=\"" + tag + "\" " + stat + "=" + str(value) + " " + timestamp
+  return point
+
 def _main():
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(description="Copy data from Wireless Tags API to InfluxDB", epilog="Available STAT types depend on the tag, but these are the current known types: temperature, dp (dew point), cap (humidity), batteryVolt, signal, motion, light")
+
+  parser.add_argument('--stat', metavar='STAT', default="temperature", help='stat type to fetch (defaults to temperature)')
   parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch last N minutes of data')
   parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
   parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (defaults to now)')
 
   args = parser.parse_args()
+
+  ## Stat translations: http://wirelesstag.net/jshtmlview.aspx?html=tempStatsMulti.html
+  wtag_stat = args.stat
 
   if args.todate and not args.fromdate:
     parser.error('--todate can only be set with --fromdate')
@@ -84,8 +105,12 @@ def _main():
         value_dt_utc = value_dt.astimezone(pytz.utc)
         timestamp = timegm(value_dt_utc.timetuple())
         tag = idmap[day['ids'][tag_index]]
-        point = "wtag,tag=\"" + str(tag).replace(' ','\ ') + "\" temp=" + str(value) + " " + str(timestamp*1000000000)
+        point = _format_point(tag,wtag_stat,value,timestamp)
         points.append(point)
+
+  if not points:
+    print "No data points received from API"
+    sys.exit(0)
 
   influx_rs = requests.Session()
 
