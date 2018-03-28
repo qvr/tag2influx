@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta
 import pytz
 from calendar import timegm
+from collections import defaultdict
 import sys
 
 ## settings ##
@@ -29,35 +30,71 @@ def _batches(iterable, size):
   for i in xrange(0, len(iterable), size):
     yield iterable[i:i + size]
 
-def _format_point(tag,stat,value,timestamp):
+def _format_points(points):
   try:
     series = conf['influx']['schema'].get('series') or "wtag"
   except KeyError:
     series = "wtag"
 
-  try:
-    stat = conf['influx']['schema']['stat_map'].get(stat) or stat
-  except KeyError:
-    pass
+  result= []
+  for time in sorted(points):
+    for tag in points[time]:
+      stats = []
+      for stat in points[time][tag]:
+        value = str(points[time][tag][stat])
+        try:
+          stat = conf['influx']['schema']['stat_map'].get(stat) or stat
+        except KeyError:
+          pass
+        stats.append("%s=%s" % (stat, value))
+      result.append("%s,tag=\"%s\" %s %s" % (series, str(tag).replace(' ','\ '), ' '.join(stats), str(time*1000000000)))
 
-  tag = str(tag).replace(' ','\ ')
-  timestamp = str(timestamp*1000000000)
+  return result
 
-  point = series + ",tag=\"" + tag + "\" " + stat + "=" + str(value) + " " + timestamp
-  return point
+def _fetch_wtag_data(rs, stat, local_tz, fromDate, toDate, points):
+  wtag_r = rs.post(wtag_getmultitagstatsraw_url, json = {"ids":wtag_tag_ids,"type":stat,"fromDate":fromDate.strftime("%Y-%m-%dT%H:%M"),"toDate":toDate.strftime("%Y-%m-%d")}, timeout=20)
+  assert wtag_r.ok, "GetMultiTagStatsRaw failed"
+
+  j = json.loads(wtag_r.content)
+
+  idmap = {}
+  for i,id in enumerate(j['d']['ids'],0):
+    idmap[id]=j['d']['names'][i]
+
+  for day in j['d']['stats']:
+    day_dt = datetime.strptime(day['date'],'%m/%d/%Y')
+    day_dt = local_tz.localize(day_dt)
+    for tag_index,tagvalues in enumerate(day['values'],0):
+      for i,value in enumerate(tagvalues,0):
+        value_dt = day_dt + timedelta(seconds=day['tods'][tag_index][i])
+        value_dt_utc = value_dt.astimezone(pytz.utc)
+        timestamp = timegm(value_dt_utc.timetuple())
+        tag = idmap[day['ids'][tag_index]]
+        points[timestamp][tag][stat] = value
+
+  return points
+
+def _write_influx(points):
+  influx_rs = requests.Session()
+
+  for batch,data in enumerate(_batches(points, influx_batch_size),1):
+    print "WRITE batch " + str(batch) + ", " + str(len(data)) + " points"
+    if isinstance(data, str):
+      data = [data]
+    influx_r = influx_rs.post(influx_write_url, data = ('\n'.join(data) + '\n').encode('utf-8'), timeout=15)
+    assert influx_r.ok, "influx write failed: " + influx_r.text
+
+  print "WROTE " + str(len(points)) + " points in " + str(batch) + " batches"
 
 def _main():
   parser = argparse.ArgumentParser(description="Copy data from Wireless Tags API to InfluxDB", epilog="Available STAT types depend on the tag, but these are the current known types: temperature, dp (dew point), cap (humidity), batteryVolt, signal, motion, light")
 
-  parser.add_argument('--stat', metavar='STAT', default="temperature", help='stat type to fetch (defaults to temperature)')
-  parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch last N minutes of data')
+  parser.add_argument('--stat', metavar='STAT', nargs='*', default=["temperature"], help='stat type(s) to fetch (default: temperature)')
+  parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch last N minutes of data (default: 30)')
   parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
-  parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (defaults to now)')
+  parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (default: now)')
 
   args = parser.parse_args()
-
-  ## Stat translations: http://wirelesstag.net/jshtmlview.aspx?html=tempStatsMulti.html
-  wtag_stat = args.stat
 
   if args.todate and not args.fromdate:
     parser.error('--todate can only be set with --fromdate')
@@ -78,50 +115,26 @@ def _main():
     else:
       toDate = datetime.now(wtag_local_tz)
 
-  print "Requesting WTAG " + wtag_stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
 
   wtag_rs = requests.Session()
 
-  wtag_r = wtag_rs.post(wtag_signin_url, json = {"email":wtag_email,"password":wtag_password}, timeout=5)
-  assert wtag_r.ok, "login failed"
+  points = defaultdict(lambda: defaultdict(dict))
+  login = False
+  for stat in args.stat:
+    print "Requesting WTAG " + stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
 
-  wtag_r = wtag_rs.post(wtag_getmultitagstatsraw_url, json = {"ids":wtag_tag_ids,"type":wtag_stat,"fromDate":fromDate.strftime("%Y-%m-%dT%H:%M"),"toDate":toDate.strftime("%Y-%m-%d")}, timeout=20)
-  assert wtag_r.ok, "GetMultiTagStatsRaw failed"
+    if not login:
+      wtag_r = wtag_rs.post(wtag_signin_url, json = {"email":wtag_email,"password":wtag_password}, timeout=5)
+      assert wtag_r.ok, "login failed"
+      login = True
 
-  j = json.loads(wtag_r.content)
-
-  idmap = {}
-  for i,id in enumerate(j['d']['ids'],0):
-    idmap[id]=j['d']['names'][i]
-
-  points = []
-
-  for day in j['d']['stats']:
-    day_dt = datetime.strptime(day['date'],'%m/%d/%Y')
-    day_dt = wtag_local_tz.localize(day_dt)
-    for tag_index,tagvalues in enumerate(day['values'],0):
-      for i,value in enumerate(tagvalues,0):
-        value_dt = day_dt + timedelta(seconds=day['tods'][tag_index][i])
-        value_dt_utc = value_dt.astimezone(pytz.utc)
-        timestamp = timegm(value_dt_utc.timetuple())
-        tag = idmap[day['ids'][tag_index]]
-        point = _format_point(tag,wtag_stat,value,timestamp)
-        points.append(point)
+    points = _fetch_wtag_data(wtag_rs, stat, wtag_local_tz, fromDate, toDate, points)
 
   if not points:
     print "No data points received from API"
-    sys.exit(0)
+  else:
+    _write_influx(_format_points(points))
 
-  influx_rs = requests.Session()
-
-  for batch,data in enumerate(_batches(points, influx_batch_size),1):
-    print "WRITE batch " + str(batch) + ", " + str(len(data)) + " points"
-    if isinstance(data, str):
-      data = [data]
-    influx_r = influx_rs.post(influx_write_url, data = ('\n'.join(data) + '\n').encode('utf-8'), timeout=15)
-    assert influx_r.ok, "influx write failed: " + influx_r.text
-
-  print "WROTE " + str(len(points)) + " points in " + str(batch) + " batches"
 
 if __name__ == "__main__":
   _main()
