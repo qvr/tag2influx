@@ -9,8 +9,20 @@ from calendar import timegm
 from collections import defaultdict
 import sys
 
+## parse arguments
+parser = argparse.ArgumentParser(description="Copy data from Wireless Tags API to InfluxDB", epilog="Available STAT types depend on the tag, but these are the current known types: temperature, dp (dew point), cap (humidity), batteryVolt, signal, motion, light")
+
+parser.add_argument('--stat', metavar='STAT', nargs='*', default=["temperature"], help='stat type(s) to fetch (default: temperature)')
+parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch last N minutes of data (default: 30)')
+parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
+parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (default: now)')
+parser.add_argument('--config', metavar='FILE', default="tag2influx.conf", help='path to configuration file (default: tag2influx.conf)')
+parser.add_argument('-d', help=argparse.SUPPRESS)
+
+args = parser.parse_args()
+
 ## settings ##
-with open('tag2influx.conf') as json_conf_file:
+with open(args.config) as json_conf_file:
   conf = json.load(json_conf_file)
 
 wtag_email = conf['wtag']['email']
@@ -94,15 +106,6 @@ def _write_influx(points):
   print "WROTE " + str(len(points)) + " points in " + str(batch) + " batches"
 
 def _main():
-  parser = argparse.ArgumentParser(description="Copy data from Wireless Tags API to InfluxDB", epilog="Available STAT types depend on the tag, but these are the current known types: temperature, dp (dew point), cap (humidity), batteryVolt, signal, motion, light")
-
-  parser.add_argument('--stat', metavar='STAT', nargs='*', default=["temperature"], help='stat type(s) to fetch (default: temperature)')
-  parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch last N minutes of data (default: 30)')
-  parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
-  parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (default: now)')
-
-  args = parser.parse_args()
-
   if args.todate and not args.fromdate:
     parser.error('--todate can only be set with --fromdate')
 
