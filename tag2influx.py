@@ -17,11 +17,19 @@ parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch las
 parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
 parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (default: now)')
 parser.add_argument('--config', metavar='FILE', default="tag2influx.conf", help='path to configuration file (default: tag2influx.conf)')
-parser.add_argument('-d', help=argparse.SUPPRESS)
+parser.add_argument('-d', action='count', help=argparse.SUPPRESS)
 
 args = parser.parse_args()
 
+def _debug(msg, minlvl=1):
+  if args.d >= minlvl:
+    print "debug: " + msg
+
+_debug("debug level " + str(args.d) + " enabled")
+
 ## settings ##
+_debug("using configuration file " + str(args.config))
+
 with open(args.config) as json_conf_file:
   conf = json.load(json_conf_file)
 
@@ -67,6 +75,7 @@ def _format_points(points):
           pass
         stats.append("%s=%s" % (stat, value))
       result.append("%s,%s=\"%s\" %s %s" % (measurement, tag_key, str(tag).replace(' ', r'\ '), ' '.join(stats), str(time*1000000000)))
+      _debug(result[-1])
 
   return result
 
@@ -142,8 +151,11 @@ def _main():
   if not points:
     print "No data points received from API"
   else:
-    _write_influx(_format_points(points))
-
+    if args.d < 2:
+      _write_influx(_format_points(points))
+    else:
+      _debug("influx write disabled, format only")
+      _format_points(points)
 
 if __name__ == "__main__":
   _main()
