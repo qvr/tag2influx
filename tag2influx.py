@@ -36,7 +36,7 @@ def _format_points(points):
   except KeyError:
     series = "wtag"
 
-  result= []
+  result = []
   for time in sorted(points):
     for tag in points[time]:
       stats = []
@@ -114,7 +114,6 @@ def _main():
       toDate = wtag_local_tz.localize(toDate)
     else:
       toDate = datetime.now(wtag_local_tz)
-
 
   wtag_rs = requests.Session()
 
