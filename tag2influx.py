@@ -32,9 +32,9 @@ def _batches(iterable, size):
 
 def _format_points(points):
   try:
-    series = conf['influx']['schema'].get('series') or "wtag"
+    measurement = conf['influx']['schema'].get('measurement') or "wtag"
   except KeyError:
-    series = "wtag"
+    measurement = "wtag"
 
   result = []
   for time in sorted(points):
@@ -47,7 +47,7 @@ def _format_points(points):
         except KeyError:
           pass
         stats.append("%s=%s" % (stat, value))
-      result.append("%s,tag=\"%s\" %s %s" % (series, str(tag).replace(' ','\ '), ' '.join(stats), str(time*1000000000)))
+      result.append("%s,tag=\"%s\" %s %s" % (measurement, str(tag).replace(' ','\ '), ' '.join(stats), str(time*1000000000)))
 
   return result
 
