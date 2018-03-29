@@ -31,10 +31,17 @@ def _batches(iterable, size):
     yield iterable[i:i + size]
 
 def _format_points(points):
+  measurement = "wtag"
   try:
-    measurement = conf['influx']['schema'].get('measurement') or "wtag"
+    measurement = conf['influx']['schema'].get('measurement') or measurement
   except KeyError:
-    measurement = "wtag"
+    pass
+
+  tag_key = "tag"
+  try:
+    tag_key = conf['influx']['schema'].get('tag_key') or tag_key
+  except KeyError:
+    pass
 
   result = []
   for time in sorted(points):
@@ -47,7 +54,7 @@ def _format_points(points):
         except KeyError:
           pass
         stats.append("%s=%s" % (stat, value))
-      result.append("%s,tag=\"%s\" %s %s" % (measurement, str(tag).replace(' ','\ '), ' '.join(stats), str(time*1000000000)))
+      result.append("%s,%s=\"%s\" %s %s" % (measurement, tag_key, str(tag).replace(' ', r'\ '), ' '.join(stats), str(time*1000000000)))
 
   return result
 
