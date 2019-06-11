@@ -136,8 +136,8 @@ def _main():
 
   wtag_rs = requests.Session()
 
-  login = False
   points = defaultdict(lambda: defaultdict(dict))
+  login = False
   for stat in args.stat:
     print "Requesting WTAG " + stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
 
