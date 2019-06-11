@@ -136,9 +136,9 @@ def _main():
 
   wtag_rs = requests.Session()
 
-  points = defaultdict(lambda: defaultdict(dict))
   login = False
   for stat in args.stat:
+    points = defaultdict(lambda: defaultdict(dict))
     print "Requesting WTAG " + stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
 
     if not login:
@@ -148,14 +148,14 @@ def _main():
 
     points = _fetch_wtag_data(wtag_rs, stat, wtag_local_tz, fromDate, toDate, points)
 
-  if not points:
-    print "No data points received from API"
-  else:
-    if args.d < 2:
-      _write_influx(_format_points(points))
+    if not points:
+      print "No data points received from API"
     else:
-      _debug("influx write disabled, format only")
-      _format_points(points)
+      if args.d < 2:
+        _write_influx(_format_points(points))
+      else:
+        _debug("influx write disabled, format only")
+        _format_points(points)
 
 if __name__ == "__main__":
   _main()
