@@ -1,9 +1,10 @@
 {
   "wtag":{
-    "tag_ids": [1,2,3],
+    "tag_ids": [0,1,2],
     "email": "user@example.com",
     "password": "secret",
-    "timezone": "Europe/Helsinki"
+    "timezone": "Europe/Helsinki",
+    "base_url": "https://my.wirelesstag.net"
   },
   "influx":{
     "write_url": "https://influx.local/influxdb/write?db=influxdb",
@@ -11,7 +12,9 @@
       "measurement": "wtag",
       "stat_map":{
         "temperature": "temp",
-        "cap": "humidity"
+        "cap": "humidity",
+        "dp": "dewpoint",
+        "batteryVolt": "battery"
       }
     }
   }
