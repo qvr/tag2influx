@@ -74,7 +74,7 @@ def _format_points(points):
         except KeyError:
           pass
         stats.append("%s=%s" % (stat, value))
-      result.append("%s,%s=\"%s\" %s %s" % (measurement, tag_key, str(tag).replace(' ', r'\ '), ' '.join(stats), str(time*1000000000)))
+      result.append("%s,%s=\"%s\" %s %s" % (measurement, tag_key, str(tag).replace(' ', r'\ '), ','.join(stats), str(time*1000000000)))
       _debug(result[-1])
 
   return result
