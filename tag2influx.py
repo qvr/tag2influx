@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import requests
@@ -17,13 +17,13 @@ parser.add_argument('--last', metavar='N', type=int, default=30, help='fetch las
 parser.add_argument('--fromdate', metavar='YYYY-MM-DD[THH:MM]', help='fetch data starting from date (optionally time)')
 parser.add_argument('--todate', metavar='YYYY-MM-DD', help='fetch data ending on date (default: now)')
 parser.add_argument('--config', metavar='FILE', default="tag2influx.conf", help='path to configuration file (default: tag2influx.conf)')
-parser.add_argument('-d', action='count', help=argparse.SUPPRESS)
+parser.add_argument('-d', action='count', default=0, help=argparse.SUPPRESS)
 
 args = parser.parse_args()
 
 def _debug(msg, minlvl=1):
   if args.d >= minlvl:
-    print "debug: " + msg
+    print("debug: " + msg)
 
 _debug("debug level " + str(args.d) + " enabled")
 
@@ -47,7 +47,7 @@ wtag_getmultitagstatsraw_url = wtag_base_url + (conf['wtag'].get('getmultitagsta
 ## settings end ##
 
 def _batches(iterable, size):
-  for i in xrange(0, len(iterable), size):
+  for i in range(0, len(iterable), size):
     yield iterable[i:i + size]
 
 def _format_points(points):
@@ -106,13 +106,13 @@ def _write_influx(points):
   influx_rs = requests.Session()
 
   for batch,data in enumerate(_batches(points, influx_batch_size),1):
-    print "WRITE batch " + str(batch) + ", " + str(len(data)) + " points"
+    print("WRITE batch " + str(batch) + ", " + str(len(data)) + " points")
     if isinstance(data, str):
       data = [data]
     influx_r = influx_rs.post(influx_write_url, data = ('\n'.join(data) + '\n').encode('utf-8'), timeout=15)
     assert influx_r.ok, "influx write failed: " + influx_r.text
 
-  print "WROTE " + str(len(points)) + " points in " + str(batch) + " batches"
+  print("WROTE " + str(len(points)) + " points in " + str(batch) + " batches")
 
 def _main():
   if args.todate and not args.fromdate:
@@ -139,7 +139,7 @@ def _main():
   points = defaultdict(lambda: defaultdict(dict))
   login = False
   for stat in args.stat:
-    print "Requesting WTAG " + stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d"))
+    print("Requesting WTAG " + stat + " data, fromDate: " + str(fromDate.strftime("%Y-%m-%dT%H:%M")) + ", toDate: " + str(toDate.strftime("%Y-%m-%d")))
 
     if not login:
       wtag_r = wtag_rs.post(wtag_signin_url, json = {"email":wtag_email,"password":wtag_password}, timeout=5)
@@ -149,7 +149,7 @@ def _main():
     points = _fetch_wtag_data(wtag_rs, stat, wtag_local_tz, fromDate, toDate, points)
 
   if not points:
-    print "No data points received from API"
+    print("No data points received from API")
   else:
     if args.d < 2:
       _write_influx(_format_points(points))
