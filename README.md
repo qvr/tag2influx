@@ -1,5 +1,5 @@
 # tag2influx.py
-Simple Python script to copy data from Wireless Tags API to your own InfluxDB
+Simple Python 3 script to copy data from Wireless Tags API to your own InfluxDB
 
 # Usage
 ## Configuration
@@ -10,7 +10,9 @@ By default the script will fetch data for the last 30 minutes, this can be chang
 
 Other parameters can be seen with `--help`.
 
-Running the script multiple times with overlapping time ranges should be fine, influxdb will not add duplicate data points for the same timestamp.
+Running the script multiple times with overlapping time ranges should be fine, influxdb will not add duplicate data points for the same timestamp. So you can run the script every 15 minutes from cron and the default 30 minute fetch range should make sure you don't miss any data.
+
+In case of API outages or otherwise missed syncs, you can easily backfill any missing data by running the script once with a larger `--last N` value or even multiple days at a time with the `--fromdate` option.
 
 # Known issues
 - ~~Supports only temperature data for now~~
